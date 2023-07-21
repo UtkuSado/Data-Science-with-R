@@ -1,0 +1,867 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## 1. Eksik Veri
+
+### 1.0  Veri Seri 
+
+````{r}
+df <- data.frame(
+  V1 = c(1,3,6,NA,7,1,NA,9,15),
+  V2 = c(7,NA,5,9,12,NA,NA,2,3),
+  V3 = c(NA,12,5,6,3,7,2,NA,31)
+)
+df
+
+````
+
+### 1.1 Silme ve Doldurma
+
+````{r}
+na.omit(df) # Bir dataframe içerisindeki bütün eksik gözlemleri siler. eksk gözlem olan satırı direkt siler.
+
+df$V1[is.na(df$V1)] <- mean(df$V1, na.rm = TRUE)
+df
+
+#değişken sayısı çok olursa 
+
+sapply(df, function(x) ifelse(is.na(x), mean(x, na.rm= TRUE), x))
+
+````
+
+### 1.2 Eksik veriyi Değerlendirme 
+
+````{r}
+
+df <- data.frame(
+  V1 = c(1,3,6,NA,7,1,NA,9,15),
+  V2 = c(7,NA,5,9,12,NA,NA,2,3),
+  V3 = c(NA,12,5,6,3,7,2,NA,31)
+)
+
+is.na(df)
+
+sum(is.na(df))
+
+colSums(is.na(df))
+
+rowSums(is.na(df))
+
+which(is.na(df))
+
+````
+
+### 1.3 Eksik ya da Tam Gözlemlere Erişme 
+
+````{r}
+
+df <- data.frame(
+  V1 = c(1,3,6,NA,7,1,NA,9,15),
+  V2 = c(7,NA,5,9,12,NA,NA,2,3),
+  V3 = c(NA,12,5,6,3,7,2,NA,31)
+)
+
+complete.cases(df)
+
+df[complete.cases(df),] 
+
+df[!complete.cases(df),] 
+
+df[!complete.cases(df),]$V1
+
+
+
+````
+
+### 1.4 Eksik Verinin Görselleştirilmesi 1
+
+````{r}
+library(ISLR)
+
+df <- Hitters
+
+str(df)
+
+colSums(is.na(df)) # görüldüğü üzere salaryde 59 tane eksik değer var
+
+df[sample(1:nrow(df), 7), 'Hits'] <- NA
+df[sample(1:nrow(df), 9), 'Runs'] <- NA
+df[sample(1:nrow(df), 5), 'RBI'] <- NA
+
+colSums(is.na(df))
+
+df[!complete.cases(df),]
+
+library(mice)
+
+md.pattern(df[, c("CAtBat","Years","Walks","Salary", "Hits" ,"Runs", "RBI") ])  
+
+# Grafiğin Yorumlanması: kesişme nedir, tekil olarak bir değişken ne kadar eksikliği sebep olur, bir değişken olası tüm değişken kombinasyonları ile bir araya gelerek ne kadar eksikliğe sebep olur...
+
+````
+
+### 1.5 Eksik Verinin Görselleştirilmesi 2
+
+````{r}
+library(VIM)  
+
+df <- Hitters
+df[sample(1:nrow(df), 7), 'Hits'] <- NA
+df[sample(1:nrow(df), 9), 'Runs'] <- NA
+df[sample(1:nrow(df), 5), 'RBI'] <- NA
+
+aggr_plot <- aggr(df, col=c('navyblue','red'), 
+                  numbers = TRUE, 
+                  sortVars = TRUE, 
+                  labels = names(df), 
+                  cex.axis=.7, 
+                  gap=3, 
+                  ylab=c("Eksik Degerlerin Oransal Gosterimi",
+                         "Eksikligin Veri Seti Icindeki Yapisi"))
+
+
+aggr_plot
+
+# 1. çıktı: her değişkendeki eksikliği oransal olarak ifade eder.
+# 2. çıktı: görsel olarak bize veri seti üzerinde yorumlama imkanı sunar.
+
+# Bir eksik gözlemdeki eksikliğin büyükbir çogunlugu bir başka değişken ile birlikte gözleniyor ise bu durumda bu değişkendeki eksikliğin birbirlerine bir bağımlılık olma durumu söz konusu olabilir. 
+````
+
+### 1.6 Rassallığın Test Edilmesi: 
+
+H0: Eksik Veriler Tamamen Rastgele Dağılmıştır.
+H1: Eksik Veriler Tamamen Rastgele Dağılmamıştır.
+
+````{r}
+
+install.packages("BaylorEdPsych")  
+library(BaylorEdPsych)
+
+# kütüphane R'ın bu sürümünde mevcut olmadıgı için sadece kod mantıgını yazcam.
+
+r_test <- LittleMCAR(df)
+
+attributes(r_test)
+
+r_test$p.value# bu kod sonucunda p değeri verir ve bize H0 reddetip rededemeyeceğimizi               kararlaştırır.
+r_test$amount.missing
+
+
+````
+
+### 1.7 Silme Yöntemleri 
+
+#### 1.7.1 Gözlem Silme 
+
+````{r}
+
+na.omit(df)
+
+sapply(df, function(x) sum(is.na(x))) 
+
+sapply(df[!is.na(df$Runs),], function(x) sum(is.na(x))) 
+
+df <- df[!is.na(df$Runs),]
+
+# satır bazında eksikliği inceleme 
+
+sum(is.na(df[1,])) / length(df[1,])
+
+# bunu bütün gözlemlere uygulama
+
+g <-apply(df, 1, function(x) sum(is.na(x)) / length(x))
+g <- as.vector(g)
+
+df$eksik_oran <- g
+str(df)
+
+df %>% filter(eksik_oran < 0.05)
+
+````
+#### 1.7.2 Değişken Silme 
+
+````{r}
+
+df <- Hitters
+df[sample(1:nrow(df), 7), 'Hits'] <- NA
+df[sample(1:nrow(df), 9), 'Runs'] <- NA
+df[sample(1:nrow(df), 5), 'RBI'] <- NA
+
+library(funModeling)
+df_status(df)
+
+df$Salary <- NULL
+
+D <- apply(df, 2, function(x) sum(is.na(x)) / length(x))
+D <- as.data.frame(D)
+
+rownames(D)
+
+D$degisken_ismi <- row.names(D)
+
+D[D$D > 0.02, ]
+
+````
+
+### 1.8 Basit Değer Atama Yöntemleri 
+
+````{r}
+# Veri Seti
+df <- Hitters
+df[sample(1:nrow(df), 7), 'Hits'] <- NA
+df[sample(1:nrow(df), 9), 'Runs'] <- NA
+df[sample(1:nrow(df), 5), 'RBI'] <- NA
+
+df$Hits[is.na(df$Hits)] <- mean(df$Hits, na.rm= TRUE)
+
+summary(df)
+
+library(hmisc)
+df$Salary <- impute(df$Salary, mean)
+summary(df$Salary)
+
+````
+
+### 1.9 Tahmine Dayalı Değer Atama 
+
+#### 1.9.1 KNN ile Atama 
+
+````{r}
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+  
+library(DMwR) #knn icin gerekli olan kutuphane
+
+anyNA(df)
+knn_data <- knnImputation(df, k=5)
+anyNA(knn_data)
+
+````
+
+##### 1.9.1.1 KNN atamalari ile Gerçek Değer Karşılaştırılması
+
+````{r}
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+#EKSIKLERIN INDEKSLERINE ERISMEK
+
+which(is.na(df))
+which(is.na(df$Hits))
+
+#Tum degiskenler icin indekslere erismek
+sapply(df, function(x) which(is.na(x)))
+
+l <- sapply(df, function(x) which(is.na(x)))
+l
+l <- l[c("Salary","Hits","Runs","RBI")]
+l
+
+#GERCEK VERIDE INDEKSLERIN GERCEK DEGERLERI
+Hitters[c(l$Hits),]$Hits
+Hitters[c(l$Runs),]$Runs
+Hitters[c(l$RBI),]$RBI
+
+
+#TAHMIN EDILEN DEGERLERE ERISMEK
+knn_data <- knnImputation(df, k = 5) 
+
+knn_data[c(l$Hits),]$Hits
+knn_data[c(l$Runs),]$Runs
+knn_data[c(l$RBI),]$RBI
+
+
+#KARSILASTIRMA
+mean(Hitters[c(l$Hits),]$Hits - knn_data[c(l$Hits),]$Hits)
+summary(Hitters$Hits)
+
+mean(Hitters[c(l$Runs),]$Runs - knn_data[c(l$Runs),]$Runs)
+summary(Hitters$Runs)
+
+mean(Hitters[c(l$RBI),]$RBI - knn_data[c(l$RBI),]$RBI)
+summary(Hitters$Runs)
+
+````
+
+
+#### 1.9.2 Random Forest ile Atama
+
+`````{r}
+#install.packages("missForest")
+library(missForest)
+
+
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+
+rf_data <- missForest(df, ntree = 7)
+
+str(rf_data)
+
+
+````
+
+##### 1.9.2.1 RF ile Gercek Degerleri Karsilatirma
+```{r}
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+l <- sapply(df, function(x) which(is.na(x)))
+
+l <- l[c("Salary","Hits","Runs","RBI")]
+
+
+
+#GERCEK VERIDE INDEKSLERIN GERCEK DEGERLERI
+Hitters[c(l$Hits),]$Hits
+Hitters[c(l$Runs),]$Runs
+Hitters[c(l$RBI),]$RBI
+
+#TAHMIN EDILEN DEGERLERE ERISMEK
+rf_data <- missForest(df, ntree = 10)
+
+rf_data <- rf_data$ximp
+
+rf_data[c(l$Hits),]$Hits
+rf_data[c(l$Runs),]$Runs
+rf_data[c(l$RBI),]$RBI
+
+
+#KARSILASTIRMA
+mean(Hitters[c(l$Hits),]$Hits - rf_data[c(l$Hits),]$Hits)
+summary(Hitters$Hits)
+
+mean(Hitters[c(l$Runs),]$Runs - rf_data[c(l$Runs),]$Runs)
+summary(Hitters$Runs)
+
+mean(Hitters[c(l$RBI),]$RBI - rf_data[c(l$RBI),]$RBI)
+summary(Hitters$Runs)
+
+```
+
+### Not: EKSİK VERİYİ EN İYİ DOLDURMA! 
+````{R}
+### Dikakt !!!
+## Eksik Veri Konusunda En Başarılı Doldurma Yöntemi
+## Veri setindeki tam gözlemlere odaklan ve kendimize suni eksk değerler atayalım.
+## Daha sonra bu eksik olan veriyi random forest, knn, vb yöntemleri deneyerek bunun sonucunda bu algoritmaların her birinin sonuçlarını karşılaştırarak, kendi oluşturdugumuz eksik gözlemlerin tahmini değerleri ile gerçek degerler arasında, en başarılı algoritma ve parametrelerini alıp artık veri setindeki orjinal eksik verileri doldurmak için bu yöntem ile belirlediğimiz algoritmayı kullanabiliriz.
+````
+
+### Ödev: Eksik Veri 
+
+````{r}
+# 1-) mtcars ı df  e ata, mpg ve qsec için rastgele Eksik gözlem oluştur
+df <- mtcars
+View(head(mtcars))
+colnames(df)
+# 2-) eksik verileri tespit et
+df[sample(1:nrow(df), 3), 'mpg'] <- NA
+df[sample(1:nrow(df), 2), 'qsec'] <- NA
+summary(df)
+sum(is.na(df))
+colSums(is.na(df))
+rowSums(is.na(df))
+which(is.na(df))
+df[!complete.cases(df),]
+# 3-) eksik verinin rastgeleliğini sorgulamak için hipotez oluştur
+# H0: Eksik veriler tamamen rastgele dağılmıştır.
+# H1: Eksik veriler tamamen rastgele dağılmamıştır.
+install.packages("BaylorEdPsych")  
+library(BaylorEdPsych)
+r_test <- LittleMCAR(df)
+r_test$p.value 
+# H0 hipotezinin reddemeyiz. Eksik veriler rastgele dağılıyor. 
+# 4-) eksik veri yapısını md.pattern ile incele
+library(mice)
+md.pattern(df[,c('am','gear','carb','qsec','mpg')])
+# 1-28 satırda herhangi bir eksik değer yoktur.
+# 2-2 satırda mpg değişkeninde sadece eksik değer vardır.
+# 3-1 satırda qsec değişkeninde eksik değer vardır.
+# 4-1 satırda hem mpg hem qsec değişkeninde eksik değer vardır.
+#5-) VIM ile eksik veriyi görselleştir ve incele
+library(VIM)  
+aggr_plot <- aggr(df, col=c('navyblue','red'), 
+                  numbers = TRUE, 
+                  sortVars = TRUE, 
+                  labels = names(df), 
+                  cex.axis=.7, 
+                  gap=3, 
+                  ylab=c("Eksik Degerlerin Oransal Gosterimi",
+                         "Eksikligin Veri Seti Icindeki Yapisi"))
+
+aggr_plot
+#6-) eksik verileri uygun yöntemle doldurunuz.
+## knn ile doldurma 
+library(DMwR2)
+anyNA(df)
+knn_data <- knnImputation(df, k=5)
+anyNA(knn_data)
+summary(knn_data)
+````
+
+## 2. Aykırı Gözlem 
+
+### 2.1 Boxplot ile Aykırı Gözlem yakalanması
+
+````{r}
+# suni bir veri seti oluşturalım.
+
+## Tek değişkenli 
+set.seed(54)
+
+veri <- rnorm(100)
+summary(veri)
+
+veri <- c(veri, c(4,5,6)) # suni veri setine suni aykırı gözlemler ekledik.
+boxplot(veri) # 3 tane aykırı gözlem gördük.
+boxplot.stats(veri)$out # aykırı gözlemlere eriştik.
+which(veri %in% boxplot.stats(veri)$out) # aykırı gözlemlerin indekslerine eriştik.
+
+## İki değişkenli
+
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+set.seed(455)
+y <- rnorm(100)
+y <- c(y, c(4,5,6))
+
+df <- data.frame(x,y)
+
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <-which(df$y %in% boxplot.stats(df$y)$out)
+
+intersect(boxplot.stats(df$x)$out, boxplot.stats(df$y)$out)
+ortak <- intersect(a,b)
+plot(df)
+points(df[ortak_tum, ], col= 'red', pch= '+', cex= 2.5)
+
+ortak_tum <- union(a,b)
+
+````
+
+## 2.2 Aykırı Gözlem Problemini Çözmek 
+
+### 2.2.1 Silmek 
+
+````{r}
+
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+y <- rnorm(100)
+y <- c(y, c(4,5,6))
+
+veri <- data.frame(x,y)
+
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <-which(df$y %in% boxplot.stats(df$y)$out)
+ortak_tum <- union(a,b)
+
+df[-ortak_tum,]
+summary(df[-ortak_tum,])
+
+````
+
+### 2.2.2 Ortalama ile Doldurma 
+
+````{r}
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <-which(df$y %in% boxplot.stats(df$y)$out)
+ortak_tum <- union(a,b)
+
+df[a,]$x <- mean(df$x)
+df[b,]$y <- mean(df$y)
+
+summary(df)
+
+````
+
+### 2.2.3 Baskılama 
+
+````{r}
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+y <- rnorm(100)
+y <- c(y, c(4,5,6))
+
+veri <- data.frame(x,y)
+
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <-which(df$y %in% boxplot.stats(df$y)$out)
+ortak_tum <- union(a,b)
+
+veri[a,]$x
+summary(veri$x)[5]
+
+veri[a,]$x <- summary(veri$x)[5] #fivenum(df$x)[4]
+veri[b,]$y <- summary(veri$y)[5]
+````
+
+### 2.2.4 Tahminle Doldurma 
+
+````{r}
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+y <- rnorm(100)
+y <- c(y, c(4,5,6))
+
+veri <- data.frame(x,y)
+
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <-which(df$y %in% boxplot.stats(df$y)$out)
+ortak_tum <- union(a,b)
+
+veri[ortak_tum,]
+
+# Tahminde bulunmak istiyoruz, tahmin algoritması kullanmak istiyoruz, hafif hile yaparak aykırı gözlemleri eksik veri olarak görmesini sağlicaz ve eksik veride kullandıgımız algoritmaları burada kullanacağız.
+
+# aykırı olarak yakaladıgımız değerlerin indexlerine NA aticaz.
+
+veri[a, ]$x <- NA
+veri[b, ]$y <- NA
+
+summary(veri) # aykırı gözlemleri eksik gözleme çevirdik.
+
+veri_all <- data.frame(veri, rnorm(103),rnorm(103),rnorm(103))
+
+# KNN
+library(missForest)
+rf_data <- missForest(veri_all)
+rf <- rf_data$ximp
+rf
+
+summary(rf)
+````
+
+### 2.2.5 Local Outlier Factor
+
+````{r}
+
+library(DMwR2)
+iris
+str(iris)
+summary(iris)
+
+df <- iris[, 1:4]
+df
+
+````
+
+#### 2.2.5.1 Aykırı Gözlem Skorlarının Hesaplanması
+
+````{r}
+aykiri_skor <- lofactor(df, k= 5)
+plot(density(aykiri_skor)) 
+````
+#### 2.2.5.2 Aykırı Gözlem indexlerine Erişmek 
+
+
+````{r}
+
+aykirilar <- order(aykiri_skor, decreasing = T)[1:5]
+aykirilar
+print(df[aykirilar,])
+
+````
+#### 2.2.5.3 Aykırı Gözlem Değerlerine Erişmek 
+
+````{r}
+
+aykirilar <- order(aykiri_skor, decreasing = T)[1:5]
+
+````
+
+#### 2.2.5.4 Çok Değişkenli Veri Seti İçerisinde Aykırıları Görselleştirmesi
+
+````{r}
+
+library(DMwR2)
+iris
+str(iris)
+summary(iris)
+
+df <- iris[, 1:4]
+df
+
+n <- nrow(df)
+etiketler <- 1:n
+
+aykirilar <- order(aykiri_skor, decreasing = T)[1:5]
+
+# Temel Bileşen Analizi
+
+etiketler[-aykirilar] <- '.'
+
+biplot(prcomp(df), cex= 1, xlabs= etiketler)
+````
+
+#### 2.2.5.5 Korelasyon Matrisinde Aykırıları İşaretlemek 
+
+````{r}
+pch <- rep(".", n) 
+pch
+
+pch[aykirilar] <- "+"
+pch
+
+col <- rep("black", n)
+col
+
+col[aykirilar] <- "red"
+
+pairs(df, pch = pch, col = col)
+
+````
+
+### 2.2.6 Kümeleme Yöntemi
+
+#### 2.2.6.1 Aykırı Gözlemlere Erişmek 
+````{r}
+df <- iris[,1:4]
+
+k_ort <- kmeans(df, centers= 3)
+
+plot(df, col= k_ort$cluster)
+
+k_ort$centers
+k_ort$cluster
+
+merkez_df <- k_ort$centers[k_ort$cluster, ]
+uzakliklar <- sqrt(rowSums(df, merkez_df)^2)
+uzakliklar
+
+aykirilar <- order(uzakliklar, decreasing = T)[1:10]
+print(df[aykirilar,])
+
+````
+
+#### 2.2.6.2 Aykırı Gözlemleri Görselleştirmek
+
+```{r}
+
+# kumelerin gorsellestirilmesi
+plot(df[ ,c("Sepal.Length", "Sepal.Width")], 
+     pch = ".", col = k_ort$cluster, 
+     cex = 6)
+
+#merkezlerin gorsellestirilmesi
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 8, 
+       cex = 3)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 9, 
+       cex = 4)
+
+points(df[aykirilar, c("Sepal.Length", "Sepal.Width")], 
+       pch="+", 
+       col=4, 
+       cex=3)
+
+````
+
+### Ödev: Aykırı Gözlem
+
+1. Asagidaki veri setine 2 merkezli kmeans uygulayiniz.
+2. Veri setindeki gozlemleri merkezleri ile birlikte ifade edip "merkez_df" isimli yeni bir veri seti  olusturunuz.
+3. Uzakliklari hesaplayiniz.
+4. Aykiri degerlerin 5 tanesine erisiniz.
+5. Aykiri gozlemleri gorsellestiriniz ve gorseli masaustune kaydediniz.
+5. Erismis oldugunuz indeksleri NA ile doldurunuz.
+6. Random Forests ile NA ifadelerini tahmin ederek doldurunuz.
+7. Random Forests sonrasi olusan nesnenin icerisinden veri setini seciniz.
+8. Yeni veri setinin kmeans ile gorselini olusturunuz.
+9. Olusan iki grafigi karsilastirarak yorumlayiniz.
+
+````{r}
+df <- iris[,1:4]
+k_ort <- kmeans(df, centers=2)
+merkez_df <- k_ort$centers[k_ort$cluster, ] 
+uzakliklar <- sqrt(rowSums((df - merkez_df)^2))
+aykirilar <- order(uzakliklar, decreasing=T)[1:5]
+
+plot(df[ ,c("Sepal.Length", "Sepal.Width")], 
+     pch = ".", col = k_ort$cluster, 
+     cex = 6)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 8, 
+       cex = 3)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 9, 
+       cex = 4)
+
+points(df[aykirilar, c("Sepal.Length", "Sepal.Width")], 
+       pch="+", 
+       col=4, 
+       cex=3)
+
+df[aykirilar, "Sepal.Length"] <- NA
+df[aykirilar, "Sepal.Width"] <- NA
+df[aykirilar, "Petal.Length"] <- NA
+df[aykirilar, "Petal.Width"] <- NA
+df[aykirilar,]
+
+rf_data <- missForest(df)
+rf_data <- rf_data$ximp
+rf_data
+rf_data[aykirilar,]
+
+k_ort <- kmeans(rf_data, centers=2)
+merkez_df <- k_ort$centers[k_ort$cluster, ] 
+uzakliklar <- sqrt(rowSums((rf_data - merkez_df)^2))
+aykirilar <- order(uzakliklar, decreasing=T)[1:10]
+
+plot(rf_data[ ,c("Sepal.Length", "Sepal.Width")], 
+     pch = ".", col = k_ort$cluster, 
+     cex = 6)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 8, 
+       cex = 3)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 9, 
+       cex = 4)
+
+points(rf_data[aykirilar, c("Sepal.Length", "Sepal.Width")], 
+       pch="+", 
+       col=4, 
+       cex=3)
+
+# Mavi + ile işaretlediklerimiz hiçbir kümeye giremeyen değerler, kırmızı ve siyah olmak üzere iki tane küme oluşturmuştuk.
+# ikinci oluşturduğumuz grafikte ilk grafikte bir kümeye dahil olan değerler 2. grafikte bir kümeye dahil olamamıştır bu yüzden aykırı değerdir.
+
+# Yapılan analizler sonucunda bu iki grafik ayrı ayrı elde edilmiştir. İlk grafikde elde edilen aykırı değerlere tahmine dayalı atama yöntemi olan missForest ile atama yapılmıştır. Elde edilen veri setine yeniden aykırı gözlem belirleme yöntemi kullanılış ve 2. resimde elde edilen grafiğe ulaşılmışır.  2. resimdeki aykırı gözlemler 2. resimdekinden farklı olduğu görülmektedir. Bu bir kısır döngü olduğu ve yapılacak her aykırı gözlem analizinde yeni aykırı gzlemlerin çıkacağı, bu sebeple var olan eldeki dataya göre bunun belli bir noktada kesilmesi daha uygundur.
+
+````
+## 3. Veri Standardizasyonu 
+
+````{r}
+a <- 1:100
+a
+
+````
+
+### 3.1 0-1 
+
+````{r}
+
+st_sifir_bir <- function(x){
+  
+  (x-min(x))/(max(x)-min(x))
+}
+
+st_sifir_bir(a)
+
+
+````
+
+### 3.2 Z Dönüşümü 
+
+````{r}
+
+st_z <- function(x){
+  
+  (x - mean(x))/(sd(x))
+}
+
+st_z(a)
+
+````
+
+### 3.3 -1 +1 Döüşümü 
+
+````{r}
+
+bb <- function(x) {
+  
+  ((x-mean(x)) / max(abs(x-mean(x))))
+
+}
+
+bb(a)
+
+````
+
+### 3.3 Çok Değişkenli Veri Setinde Uygulama 
+
+````{r}
+
+df <- data.frame(
+  
+  x = rnorm(50, 40, 10),
+  y = rnorm(50, 30, 8),
+  z = rnorm(50, 25, 5)
+  
+)
+
+summary(df)
+
+apply(df, 2, bb)
+
+library(dplyr)
+df %>% mutate_all(st_sifir_bir)
+
+````
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
